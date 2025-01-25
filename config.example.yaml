@@ -1,0 +1,10 @@
+channels:
+  - https://www.youtube.com/c/movieclipstrailers
+  - https://www.youtube.com/user/trailers
+max_videos_per_channel: 5
+max_video_age_months: 3
+delete_videos_older_than_months: 6
+max_storage_gb: 5
+max_resolution: 1080
+output_folder: "./trailers"
+verbose: true

@@ -1,0 +1,7 @@
+venv/*
+!venv/requirements.txt
+!requirements.txt
+config.yaml
+*.state
+*.lock
+trailers/

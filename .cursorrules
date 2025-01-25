@@ -1,0 +1,32 @@
+You are working on a Python script designed to automate the downloading and management of YouTube videos, specifically trailers, based on specified configurations. Here's the context:
+
+1. **Purpose**:
+   - The script fetches videos from predefined YouTube channels.
+   - It downloads the latest videos based on configuration limits like age, resolution, and the maximum number of videos per channel.
+   - It manages local storage by deleting older or excess files to stay within defined space limits.
+
+2. **Key Features**:
+   - **Verbose Mode**: Configurable logging for detailed updates (enabled via `config.yaml`).
+   - **Progress Bar**: Uses the `rich` library for clear and user-friendly progress visualization.
+   - **File Management**: Deletes videos based on age and storage constraints.
+   - **Locking Mechanism**: Prevents multiple script instances from running simultaneously.
+   - **State Tracking**: Maintains the last processed date for each channel in `local.state`.
+
+3. **Configuration**:
+   - The `config.yaml` file specifies YouTube channels, maximum videos, resolution, storage size, and other preferences.
+   - Example settings:
+     - Channels to monitor.
+     - Retention period for downloaded files.
+     - Maximum storage size for the trailers directory.
+
+4. **Challenges Recently Addressed**:
+   - **KeyError Handling**: The script now gracefully skips videos without an `upload_date`, logging a warning in verbose mode.
+   - **Enhanced Logging**: Logs detected files, download details (e.g., size, resolution), and deletion events.
+
+5. **Modules Used**:
+   - `yt_dlp`: For interacting with YouTube and downloading videos.
+   - `rich`: For logging, progress bars, and animations.
+   - `yaml`: For configuration management.
+   - `fcntl`: For managing file locks to avoid concurrency issues.
+
+This script is now robust, user-friendly, and efficient for managing a local library of YouTube trailers.
