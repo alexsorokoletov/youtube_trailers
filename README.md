@@ -177,3 +177,22 @@ This project is intended solely for **educational, research, and personal use**.
 - Dynamic data such as the last checked timestamp for channels is stored in a `local.state` file, ensuring that `config.yaml` remains static.
 - Regularly review your `config.yaml` and `output_folder` to ensure compliance with storage and download preferences.
 
+
+## Sync Script
+
+The `sync.py` script generates an XML file from video files in the specified trailer folder. It formats the XML with video metadata and ensures compatibility with Jellyfin's media parsing rules.
+
+### How to Run
+
+1. Ensure your `config.yaml` is set up with the correct paths for `output_folder` and `output_xml_file`.
+2. Run the script using Python:
+
+   ```bash
+   python sync.py
+   ```
+
+### What It Does
+
+- Scans the specified trailer folder for video files (`.mp4` and `.webm`).
+- Generates an XML file with metadata for each video.
+- Formats the XML with proper indentation and includes necessary schema attributes.

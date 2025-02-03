@@ -7,6 +7,7 @@ delete_videos_older_than_months: 6
 max_storage_gb: 5
 max_resolution: 1080
 output_folder: "./trailers"
+xml_metadata_path: "./trailers/trailers.xml"
 verbose: true
 flatten_output_folder: true
 max_video_length_seconds: 180
