@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import fcntl
 import yt_dlp
@@ -18,6 +19,7 @@ console = Console()
 
 # Set up basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+#logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load configuration
 
@@ -34,7 +36,7 @@ def save_state(state):
 
 # Video management
 
-def get_video_list(channel, last_checked, verbose, max_videos_per_channel):
+def get_video_list(channel, last_checked, verbose, max_videos_per_channel, max_video_length, max_video_age_months):
     ydl_opts = {
         "quiet": not verbose, 
         "skip_download": True, 
@@ -45,18 +47,23 @@ def get_video_list(channel, last_checked, verbose, max_videos_per_channel):
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(channel, download=False)
-        # if verbose:
-        #     console.log(json.dumps(info, indent=4))
     
     videos = []
     for entry in info.get("entries", []):
-        # if verbose:
-        #     console.log(json.dumps(entry, indent=4))
-        
         upload_date_str = entry.get("upload_date")
         upload_date = datetime.strptime(upload_date_str, "%Y%m%d") if upload_date_str else None
         
-        # Include videos without an upload date
+        # Check if the title contains "Trailer" (case insensitive)
+        if "trailer" not in entry["title"].lower():
+            continue
+                
+        # Check if the video is within the allowed age
+        if max_video_age_months is not None and upload_date:
+            max_age_date = datetime.now() - timedelta(days=30 * max_video_age_months)
+            if upload_date < max_age_date:
+                logging.info(f"Skipping video '{entry['title']}' due to age: uploaded on {upload_date.strftime('%Y-%m-%d')}")
+                continue
+        
         if last_checked and upload_date and upload_date <= last_checked:
             continue
         
@@ -69,20 +76,23 @@ def get_video_list(channel, last_checked, verbose, max_videos_per_channel):
     
     return videos
 
-def download_videos(videos, max_res, output_folder):
+def download_videos(videos, max_res, output_folder, flatten_output_folder):
     for video in videos:
-        # Sanitize channel name for folder creation
-        channel_name = sanitize_filename(video.get("channel", "Unknown Channel"))
-        channel_folder = output_folder / channel_name
-        channel_folder.mkdir(parents=True, exist_ok=True)
-
-        # Define a structured output template
-        output_template = f"{channel_folder}/{sanitize_filename(video['title'])}_{max_res}p.%(ext)s"
+        # Determine the output path based on the flatten_output_folder setting
+        if flatten_output_folder:
+            output_template = f"{output_folder}/{sanitize_filename(video['title'])}_PG_%(age_limit)05d_upload_%(upload_date)s_dur_%(duration)s_{max_res}p.%(ext)s"
+        else:
+            # Sanitize channel name for folder creation
+            channel_name = sanitize_filename(video.get("channel", "Unknown Channel"))
+            channel_folder = output_folder / channel_name
+            channel_folder.mkdir(parents=True, exist_ok=True)
+            # include youtube downloader duration placeholder in the template so I can parse it
+            output_template = f"{channel_folder}/{sanitize_filename(video['title'])}_PG_%(age_limit)05d_upload_%(upload_date)s_dur_%(duration)s_{max_res}p.%(ext)s"
 
         # Check if the video already exists
-        existing_files = list(channel_folder.glob(f"{sanitize_filename(video['title'])}_*"))
+        existing_files = list(output_folder.glob(f"{sanitize_filename(video['title'])}_*"))
         if existing_files:
-            logging.info(f"Skipping download, file already exists: {existing_files[0].name}")
+            logging.warning(f"Skipping download, file already exists: {existing_files[0].name}")
             continue
         
         # Download video and dynamically handle extensions
@@ -96,23 +106,13 @@ def download_videos(videos, max_res, output_folder):
             
             if result == 0:  # Check success
                 # Locate the downloaded file
-                downloaded_file = list(channel_folder.glob(f"{sanitize_filename(video['title'])}_*"))
+                downloaded_file = list(output_folder.glob(f"{sanitize_filename(video['title'])}_*"))
                 if downloaded_file:
                     file_path = downloaded_file[0]
                     file_size = file_path.stat().st_size / (1024 ** 2)  # Convert to MB
                     logging.info(f"Downloaded: {video['title']} ({file_size:.2f} MB) as {file_path.suffix} in {max_res}p")
                 else:
                     logging.warning(f"Downloaded file not found for: {video['title']}")
-
-
-
-def delete_old_videos(output_folder, months, verbose):
-    cutoff_date = datetime.now() - timedelta(days=30 * months)
-    for file in Path(output_folder).iterdir():
-        if file.is_file() and datetime.fromtimestamp(file.stat().st_mtime) < cutoff_date:
-            if verbose:
-                console.log(f"Deleting old video: {file.name}")
-            file.unlink()
 
 def check_disk_space(output_folder, max_gb, verbose):
     # Calculate total size including subdirectories
@@ -153,6 +153,36 @@ def release_lock(lock_file):
     fcntl.flock(lock_file, fcntl.LOCK_UN)
     lock_file.close()
 
+
+def post_download_cleanup(output_folder, max_video_length, max_video_age_months, verbose):
+    # Define a regex pattern to extract upload date and duration from filenames
+    # this should match the output_template from the download_videos function
+    pattern = re.compile(r"_upload_(\d{8})_dur_(\d+)_")
+
+    # Calculate the cutoff date for video age
+    max_age_date = datetime.now() - timedelta(days=30 * max_video_age_months)
+
+    for file in Path(output_folder).iterdir():
+        if file.is_file():
+            match = pattern.search(file.name)
+            if match:
+                upload_date_str, duration_str = match.groups()
+                upload_date = datetime.strptime(upload_date_str, "%Y%m%d")
+                duration = int(duration_str)
+
+                # Check if the video is older than the allowed age
+                if upload_date < max_age_date:
+                    if verbose:
+                        console.log(f"Deleting old video: {file.name} (uploaded on {upload_date.strftime('%Y-%m-%d')})")
+                    file.unlink()
+                    continue
+
+                # Check if the video is longer than the allowed duration
+                if duration > max_video_length:
+                    if verbose:
+                        console.log(f"Deleting long video: {file.name} (duration {duration}s)")
+                    file.unlink()
+
 # Main logic
 
 def main():
@@ -164,6 +194,9 @@ def main():
 
     now = datetime.now()
 
+    max_video_length = config.get("max_video_length_seconds", 180)  # Default to 180 seconds
+    max_video_age_months = config.get("max_video_age_months", None)
+
     for channel in config["channels"]:
         logging.info(f"Checking channel: {channel}")
 
@@ -171,15 +204,20 @@ def main():
         if last_checked:
             last_checked = datetime.fromisoformat(last_checked)
 
-        videos = get_video_list(channel, last_checked, verbose, config.get("max_videos_per_channel", 10))
+        videos = get_video_list(channel, last_checked, verbose, config.get("max_videos_per_channel", 10), max_video_length, max_video_age_months)
         logging.info(f"Found {len(videos)} new videos on channel: {channel}")
+        #logging.info(f"Videos: {json.dumps(videos, indent=4)}")
+        # exit()
 
-        download_videos(videos[: config["max_videos_per_channel"]], config["max_resolution"], output_folder)
+
+        download_videos(videos[: config["max_videos_per_channel"]], config["max_resolution"], output_folder, config.get("flatten_output_folder", False))
 
         state["last_checked"][channel] = now.isoformat()
 
     save_state(state)
-    delete_old_videos(output_folder, config["delete_videos_older_than_months"], verbose)
+    # Perform post-download cleanup
+    post_download_cleanup(output_folder, max_video_length, max_video_age_months, verbose)
+
     check_disk_space(output_folder, config["max_storage_gb"], verbose)
 
 if __name__ == "__main__":

@@ -1,16 +1,61 @@
-# YouTube Trailers Downloader
+# YouTube Trailer Downloader
 
-This project is a Python-based script designed to download the latest movie trailers from specified YouTube channels. It organizes, filters, and manages the trailers based on user-defined settings.
-
----
+This script automates the downloading and management of YouTube videos, specifically trailers, based on specified configurations.
 
 ## Features
 
-- Downloads new trailers from specified YouTube channels.
-- Filters downloads by video age and limits the number of videos per channel.
-- Deletes old videos to maintain storage limits.
-- Ensures downloads are in the max specified resolution (e.g., 480p, 1080p).
-- Prevents multiple script instances from running simultaneously to avoid conflicts.
+- **Fetch Videos**: Automatically fetches videos from predefined YouTube channels.
+- **Download Management**: Downloads the latest videos based on configuration limits like age, resolution, and the maximum number of videos per channel.
+- **Storage Management**: Manages local storage by deleting older or excess files to stay within defined space limits.
+- **Verbose Mode**: Configurable logging for detailed updates (enabled via `config.yaml`).
+- **Progress Bar**: Uses the `rich` library for clear and user-friendly progress visualization.
+- **File Management**: Deletes videos based on age and storage constraints.
+- **Locking Mechanism**: Prevents multiple script instances from running simultaneously.
+- **State Tracking**: Maintains the last processed date for each channel in `local.state`.
+
+## Recent Updates
+
+1. **Quiet Mode for yt_dlp**: 
+   - Implemented a custom `QuietLogger` to suppress all output from `yt_dlp`, ensuring the script runs silently without console output.
+
+2. **Improved Video Deletion Logic**:
+   - The script now uses the upload date extracted from the filename to determine the age of the video, preventing premature deletion of freshly downloaded videos.
+
+3. **Post-Download Cleanup**:
+   - Added a `post_download_cleanup` function to delete videos based on age and duration constraints, using regex to extract metadata from filenames.
+
+4. **Disk Space Management**:
+   - Enhanced the `check_disk_space` function to delete the oldest files until the total size is within the specified limit, and to remove empty directories.
+
+## Configuration
+
+The `config.yaml` file specifies:
+
+- **Channels**: List of YouTube channels to monitor.
+- **Max Videos**: Maximum number of videos to download per channel.
+- **Resolution**: Maximum resolution for downloaded videos.
+- **Storage Size**: Maximum storage size for the trailers directory.
+- **Verbose Mode**: Enable or disable detailed logging.
+
+## Usage
+
+1. **Install Dependencies**:
+   - Ensure you have Python installed along with the required packages: `yt_dlp`, `rich`, `PyYAML`.
+
+2. **Run the Script**:
+   - Execute the script using Python: `python main.py`.
+
+3. **Configuration**:
+   - Modify `config.yaml` to set your preferences for channels, video limits, and storage constraints.
+
+## Notes
+
+- Ensure the `config.yaml` and `local.state` files are correctly set up in the script's directory.
+- The script uses a locking mechanism to prevent concurrent executions, ensuring safe and consistent operations.
+
+## License
+
+This project is licensed under the MIT License.
 
 ---
 
@@ -74,6 +119,7 @@ delete_videos_older_than_months: 6
 max_storage_gb: 5
 max_resolution: 1080
 output_folder: "./trailers"
+flatten_output_folder: true
 ```
 
 - **channels**: List of YouTube channels to monitor for trailers.
